@@ -1,41 +1,49 @@
 // src/Login.jsx
 import { useEffect, useState } from "react";
+import { randomString, sha256 } from "./pkce"; // <-- make sure you have src/pkce.js
 
 export default function Login() {
+  const [token, setToken] = useState(null);
+  const [me, setMe] = useState(null);
+
   const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-  const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI; // e.g. http://127.0.0.1:5174/callback
-  const AUTH_ENDPOINT = import.meta.env.VITE_SPOTIFY_AUTH_ENDPOINT;
+  const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI; // e.g. http://127.0.0.1:5173/callback
   const SCOPES = import.meta.env.VITE_SPOTIFY_SCOPES;
 
-  const [token, setToken] = useState(null);
-  const [tracks, setTracks] = useState([]);
-
   useEffect(() => {
-    const t = localStorage.getItem("spotify_token");
-    setToken(t);
+    setToken(localStorage.getItem("spotify_token"));
   }, []);
 
-  const loginUrl =
-    `${AUTH_ENDPOINT}?client_id=${CLIENT_ID}` +
-    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-    `&response_type=token&scope=${encodeURIComponent(SCOPES)}`;
+  const handleLogin = async () => {
+    // PKCE: create verifier & challenge
+    const verifier = randomString(64);
+    const challenge = await sha256(verifier);
+    localStorage.setItem("pkce_verifier", verifier);
 
-  const handleLogin = () => (window.location.href = loginUrl);
+    const authUrl = new URL("https://accounts.spotify.com/authorize");
+    authUrl.searchParams.set("client_id", CLIENT_ID);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("scope", SCOPES);
 
-  const fetchRecentlyPlayed = async () => {
+    window.location.href = authUrl.toString();
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("spotify_token");
+    localStorage.removeItem("pkce_verifier");
+    window.location.replace("/");
+  };
+
+  const fetchMe = async () => {
     if (!token) return;
-    const res = await fetch("https://api.spotify.com/v1/me/player/recently-played?limit=5", {
+    const res = await fetch("https://api.spotify.com/v1/me", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (res.status === 401) {
-      // token expired
-      localStorage.removeItem("spotify_token");
-      setToken(null);
-      alert("Session expired. Please log in again.");
-      return;
-    }
     const data = await res.json();
-    setTracks(data.items ?? []);
+    setMe(data);
   };
 
   return (
@@ -43,18 +51,17 @@ export default function Login() {
       <h1>Moodify 🎧</h1>
 
       {!token ? (
-        <button onClick={handleLogin}>Log in with Spotify</button>
+        <>
+          <p>Click “Log in with Spotify” to start.</p>
+          <button onClick={handleLogin}>Log in</button>
+        </>
       ) : (
         <>
           <p>✅ Logged in</p>
-          <button onClick={fetchRecentlyPlayed}>Load recently played</button>
-          <ul>
-            {tracks.map((it, i) => (
-              <li key={i}>
-                {it.track?.name} — {it.track?.artists?.map(a => a.name).join(", ")}
-              </li>
-            ))}
-          </ul>
+          <button onClick={fetchMe}>Who am I?</button>
+          {me && <p>Hello, {me.display_name} 👋</p>}
+          <br />
+          <button onClick={handleLogout}>Log out</button>
         </>
       )}
     </div>

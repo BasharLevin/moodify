@@ -1,18 +1,35 @@
-// src/Callback.jsx
 import { useEffect } from "react";
 
 export default function Callback() {
   useEffect(() => {
-    const hash = window.location.hash;                    // e.g. #access_token=...&token_type=Bearer&expires_in=3600
-    console.log("Callback hash:", hash);                  // debug
-    const token = new URLSearchParams(hash.slice(1)).get("access_token");
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const verifier = localStorage.getItem("pkce_verifier");
+    if (!code || !verifier) return console.error("Missing code/verifier");
 
-    if (token) {
-      localStorage.setItem("spotify_token", token);
-      window.location.replace("/");                       // go back home
-    } else {
-      console.error("No access_token found in callback hash.");
-    }
+    const body = new URLSearchParams({
+      client_id: import.meta.env.VITE_SPOTIFY_CLIENT_ID,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: import.meta.env.VITE_SPOTIFY_REDIRECT_URI,
+      code_verifier: verifier,
+    });
+
+    fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.access_token) {
+          localStorage.setItem("spotify_token", data.access_token);
+          window.location.replace("/");
+        } else {
+          console.error("Token error:", data);
+        }
+      })
+      .catch(console.error);
   }, []);
 
   return <p style={{padding:24}}>Logging in with Spotify…</p>;
