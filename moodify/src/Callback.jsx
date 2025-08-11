@@ -1,18 +1,14 @@
 // src/Callback.jsx
 import { useEffect } from "react";
 
-const Callback = () => {
+export default function Callback() {
   useEffect(() => {
-    const hash = window.location.hash;
-    const token = new URLSearchParams(hash.substring(1)).get("access_token");
-
+    const hash = window.location.hash; // #access_token=...&...
+    const token = new URLSearchParams(hash.slice(1)).get("access_token");
     if (token) {
       localStorage.setItem("spotify_token", token);
-      window.location.href = "/";
+      window.location.replace("/"); // back to home
     }
   }, []);
-
-  return <p>Logging in with Spotify...</p>;
-};
-
-export default Callback;
+  return <p style={{padding:24}}>Logging in with Spotify…</p>;
+}
