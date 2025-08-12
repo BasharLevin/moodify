@@ -5,6 +5,7 @@ import { randomString, sha256 } from "./pkce"; // <-- make sure you have src/pkc
 export default function Login() {
   const [token, setToken] = useState(null);
   const [me, setMe] = useState(null);
+  const [recent, setRecent] = useState(null);
 
   const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI; // e.g. http://127.0.0.1:5173/callback
@@ -46,6 +47,16 @@ export default function Login() {
     setMe(data);
   };
 
+  const fetchRecent = async () => {
+    if (!token) return;
+    const resp = await fetch("https://api.spotify.com/v1/me/player/recently-played?limit=10", {
+      headers: {Authorization: `Bearer ${token}` },
+    });
+
+    const my_recent = await resp.json();
+    setRecent(my_recent);
+  }
+
   return (
     <div style={{ padding: 24 }}>
       <h1>Moodify 🎧</h1>
@@ -57,9 +68,12 @@ export default function Login() {
         </>
       ) : (
         <>
-          <p>✅ Logged in</p>
+          <p>Logged in</p>
           <button onClick={fetchMe}>Who am I?</button>
-          {me && <p>Hello, {me.display_name} 👋</p>}
+          {me && <p>Hello, {me.display_name} </p>}
+          <br />
+          <button onClick={fetchRecent}>Get recent</button>
+          {recent && <p>Your recent songs, {recent.items} , {recent.items.length}</p>}
           <br />
           <button onClick={handleLogout}>Log out</button>
         </>
