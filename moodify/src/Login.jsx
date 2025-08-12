@@ -73,7 +73,18 @@ export default function Login() {
           {me && <p>Hello, {me.display_name} </p>}
           <br />
           <button onClick={fetchRecent}>Get recent</button>
-          {recent && <p>Your recent songs, {recent.items.track?.name}</p>}
+          {recent && (
+            <div>
+              <h3>Your recent Songs: </h3>
+              <ul>
+                {recent.items.map((item, index) =>(
+                  <li key ={index}>
+                    {item.track?.name} — {item.track?.artists?.map(a => a.name).join(", ")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <br />
           <button onClick={handleLogout}>Log out</button>
         </>
