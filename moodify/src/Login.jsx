@@ -73,7 +73,7 @@ export default function Login() {
           {me && <p>Hello, {me.display_name} </p>}
           <br />
           <button onClick={fetchRecent}>Get recent</button>
-          {recent && <p>Your recent songs, {recent.items} , {recent.items.length}</p>}
+          {recent && <p>Your recent songs, {recent.items.track?.name}</p>}
           <br />
           <button onClick={handleLogout}>Log out</button>
         </>
