@@ -1,14 +1,16 @@
 // src/Login.jsx
 import { useEffect, useState } from "react";
-import { randomString, sha256 } from "./pkce"; // <-- make sure you have src/pkce.js
+import { spotify } from "./spotifyApi";
+import { randomString, sha256 } from "./pkce";
 
 export default function Login() {
   const [token, setToken] = useState(null);
   const [me, setMe] = useState(null);
-  const [recent, setRecent] = useState(null);
+  const [recent, setRecent] = useState([]);
+  const [trackIds, setTrackIds] = useState([]);
 
   const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-  const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI; // e.g. http://127.0.0.1:5173/callback
+  const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
   const SCOPES = import.meta.env.VITE_SPOTIFY_SCOPES;
 
   useEffect(() => {
@@ -16,7 +18,6 @@ export default function Login() {
   }, []);
 
   const handleLogin = async () => {
-    // PKCE: create verifier & challenge
     const verifier = randomString(64);
     const challenge = await sha256(verifier);
     localStorage.setItem("pkce_verifier", verifier);
@@ -40,22 +41,25 @@ export default function Login() {
 
   const fetchMe = async () => {
     if (!token) return;
-    const res = await fetch("https://api.spotify.com/v1/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
+    const data = await spotify.getMe();
     setMe(data);
   };
 
   const fetchRecent = async () => {
     if (!token) return;
-    const resp = await fetch("https://api.spotify.com/v1/me/player/recently-played?limit=10", {
-      headers: {Authorization: `Bearer ${token}` },
-    });
+    const data = await spotify.getRecentlyPlayed(20);
+    setRecent(data.items || []); 
+    setTrackIds([]); 
+  };
 
-    const my_recent = await resp.json();
-    setRecent(my_recent);
-  }
+
+  const buildTrackIds = () => {
+    const ids = recent.map((item) => item.track?.id).filter(Boolean);
+    const unique = Array.from(new Set(ids));
+    const top10 = unique.slice(0, 10);
+    setTrackIds(top10);
+    console.log("Track IDs:", top10);
+  };
 
   return (
     <div style={{ padding: 24 }}>
@@ -70,21 +74,34 @@ export default function Login() {
         <>
           <p>Logged in</p>
           <button onClick={fetchMe}>Who am I?</button>
-          {me && <p>Hello, {me.display_name} </p>}
+          {me && <p>Hello, {me.display_name}</p>}
+
           <br />
+
           <button onClick={fetchRecent}>Get recent</button>
-          {recent && (
+          <button onClick={buildTrackIds} disabled={recent.length === 0} style={{ marginLeft: 8 }}>
+            Build IDs from recent
+          </button>
+          {trackIds.length > 0 && <p>Collected {trackIds.length} track IDs.</p>}
+          {recent.length > 0 && trackIds.length === 0 && (
+            <p>No valid track IDs found yet.</p>
+          )}
+
+          {recent.length > 0 ? (
             <div>
-              <h3>Your recent Songs: </h3>
+              <h3>Your recent songs:</h3>
               <ul>
-                {recent.items.map((item, index) =>(
-                  <li key ={index}>
-                    {item.track?.name} — {item.track?.artists?.map(a => a.name).join(", ")}
+                {recent.map((item) => (
+                  <li key={item.played_at}>
+                    {item.track?.name} — {item.track?.artists?.map((a) => a.name).join(", ")}
                   </li>
                 ))}
               </ul>
             </div>
+          ) : (
+            <p>No recent plays yet.</p>
           )}
+
           <br />
           <button onClick={handleLogout}>Log out</button>
         </>
