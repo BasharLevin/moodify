@@ -8,6 +8,7 @@ export default function Login() {
   const [me, setMe] = useState(null);
   const [recent, setRecent] = useState([]);
   const [trackIds, setTrackIds] = useState([]);
+  const [audioFeatures, setAudioFeatures] = useState([]);
 
   const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
@@ -46,20 +47,41 @@ export default function Login() {
   };
 
   const fetchRecent = async () => {
-    if (!token) return;
     const data = await spotify.getRecentlyPlayed(20);
-    setRecent(data.items || []); 
-    setTrackIds([]); 
+    const items = data.items || [];
+    setRecent(items);
+
+    const ids = items
+      .map(i => i.track)
+      .filter(t => t && !t.is_local) 
+      .map(t => t.id);
+
+    setTrackIds(ids.slice(0, 10));
+    setAudioFeatures([]); 
   };
 
 
-  const buildTrackIds = () => {
-    const ids = recent.map((item) => item.track?.id).filter(Boolean);
-    const unique = Array.from(new Set(ids));
-    const top10 = unique.slice(0, 10);
-    setTrackIds(top10);
-    console.log("Track IDs:", top10);
+  const fetchAudioFeatures = async () => {
+    if (trackIds.length === 0) return;
+
+    try {
+      const data = await spotify.getAudioFeatures(trackIds);
+      if (!data.audio_features) {
+        console.warn("No audio features returned");
+        setAudioFeatures([]);
+        return;
+      }
+      setAudioFeatures(data.audio_features.filter(Boolean)); // remove nulls
+      console.log("Audio Features:", data.audio_features);
+    } catch (err) {
+      console.error("Spotify API error –", err);
+      setAudioFeatures([]);
+    }
   };
+
+
+
+
 
   return (
     <div style={{ padding: 24 }}>
@@ -79,12 +101,11 @@ export default function Login() {
           <br />
 
           <button onClick={fetchRecent}>Get recent</button>
-          <button onClick={buildTrackIds} disabled={recent.length === 0} style={{ marginLeft: 8 }}>
-            Build IDs from recent
-          </button>
-          {trackIds.length > 0 && <p>Collected {trackIds.length} track IDs.</p>}
-          {recent.length > 0 && trackIds.length === 0 && (
-            <p>No valid track IDs found yet.</p>
+          {trackIds.length > 0 && (
+            <>
+              <p>Collected {trackIds.length} track IDs.</p>
+              <button onClick={fetchAudioFeatures}>Get audio features</button>
+            </>
           )}
 
           {recent.length > 0 ? (
@@ -93,13 +114,27 @@ export default function Login() {
               <ul>
                 {recent.map((item) => (
                   <li key={item.played_at}>
-                    {item.track?.name} — {item.track?.artists?.map((a) => a.name).join(", ")}
+                    {item.track?.name} —{" "}
+                    {item.track?.artists?.map((a) => a.name).join(", ")}
                   </li>
                 ))}
               </ul>
             </div>
           ) : (
             <p>No recent plays yet.</p>
+          )}
+
+          {audioFeatures.length > 0 && (
+            <div>
+              <h3>Audio Features:</h3>
+              <ul>
+                {audioFeatures.map((f) => (
+                  <li key={f.id}>
+                    {f.id}: energy={f.energy}, valence={f.valence}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <br />
